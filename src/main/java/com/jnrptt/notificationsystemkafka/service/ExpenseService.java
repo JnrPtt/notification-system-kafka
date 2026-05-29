@@ -1,6 +1,7 @@
 package com.jnrptt.notificationsystemkafka.service;
 
 import com.jnrptt.notificationsystemkafka.dto.ExpenseRequestDTO;
+import com.jnrptt.notificationsystemkafka.dto.ExpenseResponseDTO;
 import com.jnrptt.notificationsystemkafka.model.Expense;
 import com.jnrptt.notificationsystemkafka.model.User;
 import com.jnrptt.notificationsystemkafka.repository.ExpenseRepository;
@@ -19,25 +20,29 @@ public class ExpenseService {
     private final ExpenseRepository expenseRepository;
     private final UserRepository userRepository;
 
-    public List<Expense> getAllExpenses() {
-        return expenseRepository.findAll();
+    public List<ExpenseResponseDTO> getAllExpenses() {
+        return expenseRepository.findAll()
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
     }
 
-    public Optional<Expense> getExpenseById(Long id) {
-        return expenseRepository.findById(id);
+    public Optional<ExpenseResponseDTO> getExpenseById(Long id) {
+        return expenseRepository.findById(id)
+                .map(this::toResponseDTO);
     }
 
     @Transactional
-    public Optional<Expense> createExpense(ExpenseRequestDTO dto) {
+    public Optional<ExpenseResponseDTO> createExpense(ExpenseRequestDTO dto) {
         if (dto.getUserId() == null) {
             return Optional.empty();
         }
         return userRepository.findById(dto.getUserId())
-                .map(user -> expenseRepository.save(buildExpense(new Expense(), dto, user)));
+                .map(user -> toResponseDTO(expenseRepository.save(buildExpense(new Expense(), dto, user))));
     }
 
     @Transactional
-    public Optional<Expense> updateExpense(Long id, ExpenseRequestDTO dto) {
+    public Optional<ExpenseResponseDTO> updateExpense(Long id, ExpenseRequestDTO dto) {
         if (dto.getUserId() == null) {
             return Optional.empty();
         }
@@ -49,7 +54,7 @@ public class ExpenseService {
         }
 
         Expense existing = existingOpt.get();
-        return Optional.of(expenseRepository.save(buildExpense(existing, dto, userOpt.get())));
+        return Optional.of(toResponseDTO(expenseRepository.save(buildExpense(existing, dto, userOpt.get()))));
     }
 
     @Transactional
@@ -68,5 +73,16 @@ public class ExpenseService {
         expense.setCategory(dto.getCategory());
         expense.setDate(dto.getDate() != null ? dto.getDate() : LocalDate.now());
         return expense;
+    }
+
+    private ExpenseResponseDTO toResponseDTO(Expense expense) {
+        return new ExpenseResponseDTO(
+                expense.getId(),
+                expense.getUser().getId(),
+                expense.getDescription(),
+                expense.getCategory(),
+                expense.getAmount(),
+                expense.getDate()
+        );
     }
 }

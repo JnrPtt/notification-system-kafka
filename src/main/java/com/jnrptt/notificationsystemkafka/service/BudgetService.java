@@ -1,6 +1,7 @@
 package com.jnrptt.notificationsystemkafka.service;
 
 import com.jnrptt.notificationsystemkafka.dto.BudgetRequestDTO;
+import com.jnrptt.notificationsystemkafka.dto.BudgetResponseDTO;
 import com.jnrptt.notificationsystemkafka.model.Budget;
 import com.jnrptt.notificationsystemkafka.model.User;
 import com.jnrptt.notificationsystemkafka.repository.BudgetRepository;
@@ -18,25 +19,29 @@ public class BudgetService {
     private final BudgetRepository budgetRepository;
     private final UserRepository userRepository;
 
-    public List<Budget> getAllBudgets() {
-        return budgetRepository.findAll();
+    public List<BudgetResponseDTO> getAllBudgets() {
+        return budgetRepository.findAll()
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
     }
 
-    public Optional<Budget> getBudgetById(Long id) {
-        return budgetRepository.findById(id);
+    public Optional<BudgetResponseDTO> getBudgetById(Long id) {
+        return budgetRepository.findById(id)
+                .map(this::toResponseDTO);
     }
 
     @Transactional
-    public Optional<Budget> createBudget(BudgetRequestDTO dto) {
+    public Optional<BudgetResponseDTO> createBudget(BudgetRequestDTO dto) {
         if (dto.getUserId() == null) {
             return Optional.empty();
         }
         return userRepository.findById(dto.getUserId())
-                .map(user -> budgetRepository.save(buildBudget(new Budget(), dto, user)));
+                .map(user -> toResponseDTO(budgetRepository.save(buildBudget(new Budget(), dto, user))));
     }
 
     @Transactional
-    public Optional<Budget> updateBudget(Long id, BudgetRequestDTO dto) {
+    public Optional<BudgetResponseDTO> updateBudget(Long id, BudgetRequestDTO dto) {
         if (dto.getUserId() == null) {
             return Optional.empty();
         }
@@ -48,7 +53,7 @@ public class BudgetService {
         }
 
         Budget existing = existingOpt.get();
-        return Optional.of(budgetRepository.save(buildBudget(existing, dto, userOpt.get())));
+        return Optional.of(toResponseDTO(budgetRepository.save(buildBudget(existing, dto, userOpt.get()))));
     }
 
     @Transactional
@@ -66,5 +71,15 @@ public class BudgetService {
         budget.setLimitAmount(dto.getLimitAmount());
         budget.setMonth(dto.getMonth());
         return budget;
+    }
+
+    private BudgetResponseDTO toResponseDTO(Budget budget) {
+        return new BudgetResponseDTO(
+                budget.getId(),
+                budget.getUser().getId(),
+                budget.getCategory(),
+                budget.getLimitAmount(),
+                budget.getMonth()
+        );
     }
 }

@@ -1,7 +1,7 @@
 package com.jnrptt.notificationsystemkafka.controller;
 
 import com.jnrptt.notificationsystemkafka.dto.ExpenseRequestDTO;
-import com.jnrptt.notificationsystemkafka.model.Expense;
+import com.jnrptt.notificationsystemkafka.dto.ExpenseResponseDTO;
 import com.jnrptt.notificationsystemkafka.service.ExpenseService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,26 +24,26 @@ public class ExpenseController {
     }
 
     @GetMapping
-    public Iterable<Expense> getAllExpenses() {
+    public Iterable<ExpenseResponseDTO> getAllExpenses() {
         return expenseService.getAllExpenses();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Expense> getExpenseById(@PathVariable Long id) {
+    public ResponseEntity<ExpenseResponseDTO> getExpenseById(@PathVariable Long id) {
         return expenseService.getExpenseById(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<Expense> createExpense(@RequestBody ExpenseRequestDTO dto) {
+    public ResponseEntity<ExpenseResponseDTO> createExpense(@RequestBody ExpenseRequestDTO dto) {
         return expenseService.createExpense(dto)
                 .map(expense -> ResponseEntity.status(HttpStatus.CREATED).body(expense))
                 .orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Expense> updateExpense(@PathVariable Long id, @RequestBody ExpenseRequestDTO dto) {
+    public ResponseEntity<ExpenseResponseDTO> updateExpense(@PathVariable Long id, @RequestBody ExpenseRequestDTO dto) {
         return expenseService.updateExpense(id, dto)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());

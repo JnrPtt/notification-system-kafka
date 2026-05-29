@@ -1,7 +1,7 @@
 package com.jnrptt.notificationsystemkafka.controller;
 
 import com.jnrptt.notificationsystemkafka.dto.UserRequestDTO;
-import com.jnrptt.notificationsystemkafka.model.User;
+import com.jnrptt.notificationsystemkafka.dto.UserResponseDTO;
 import com.jnrptt.notificationsystemkafka.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,25 +24,25 @@ public class UserController {
     }
 
     @GetMapping
-    public Iterable<User> getAllUsers() {
+    public Iterable<UserResponseDTO> getAllUsers() {
         return userService.getAllUsers();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody UserRequestDTO dto) {
-        User created = userService.createUser(dto);
+    public ResponseEntity<UserResponseDTO> createUser(@RequestBody UserRequestDTO dto) {
+        UserResponseDTO created = userService.createUser(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UserRequestDTO dto) {
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable Long id, @RequestBody UserRequestDTO dto) {
         return userService.updateUser(id, dto)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());

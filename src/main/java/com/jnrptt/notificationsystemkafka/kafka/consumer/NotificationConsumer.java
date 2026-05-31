@@ -1,5 +1,6 @@
 package com.jnrptt.notificationsystemkafka.kafka.consumer;
 
+import com.jnrptt.notificationsystemkafka.kafka.event.BudgetExceededEvent;
 import com.jnrptt.notificationsystemkafka.kafka.event.UserRegisteredEvent;
 import com.jnrptt.notificationsystemkafka.notifications.EmailNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,10 @@ public class NotificationConsumer {
     @KafkaListener(topics = "user-registered", groupId = "notification-group")
     public void handleUserRegistered( UserRegisteredEvent event) {
         emailNotificationService.sendWelcomeEmail(event.getEmail(), event.getName());
-//        System.out.println("Evento recibido:" + event.getName() + " - " + event.getEmail());
+    }
+
+    @KafkaListener(topics = "budget-exceeded", groupId = "notification-group")
+    public void handleBudgetExceeded ( BudgetExceededEvent event) {
+        emailNotificationService.sendBudgetExceededEmail(event.getUserEmail());
     }
 }

@@ -52,7 +52,7 @@ public class UserService {
             ));
         } catch (Exception e) {
             log.error("Error enviando UserRegisteredEvent a Kafka. userId={}, email={}",
-                    saved.getId(), saved.getEmail(), e); // <-- el 'e' imprime stacktrace
+                    saved.getId(), saved.getEmail(), e);
             throw e;
         }
         return toResponseDTO(saved);

@@ -18,4 +18,12 @@ public class EmailNotificationService {
         message.setText("Hola " + name + ", tu cuenta ha sido creada correctamente");
         mailSender.send(message);
     }
+
+    public void sendBudgetExceededEmail(String to) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(to);
+        message.setSubject("Aviso de gasto excedido");
+        message.setText("Hola, has excedido tu gasto mensual. Por favor, revisa tu plan de gastos.");
+        mailSender.send(message);
+    }
 }

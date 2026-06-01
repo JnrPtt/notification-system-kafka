@@ -20,11 +20,20 @@ public class Expense {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
+
+    @Column(length = 255)
     private String description;
+
+    @Column(nullable = false)
     private LocalDate date;
+
+    @Column(nullable = false, length = 80)
     private String category;
 
-    @ManyToOne
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 }

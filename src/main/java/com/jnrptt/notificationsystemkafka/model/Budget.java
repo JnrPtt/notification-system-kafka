@@ -9,7 +9,13 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "budgets")
+@Table(
+        name = "budgets",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_budget_user_category_month",
+                columnNames = {"user_id", "category", "month"}
+        )
+)
 @Setter
 @Getter
 @AllArgsConstructor
@@ -19,9 +25,16 @@ public class Budget {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @ManyToOne
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Column(nullable = false, length = 80)
     private String category;
+
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal limitAmount;
+
+    @Column(nullable = false, length = 7)
     private String month;
 }

@@ -3,6 +3,8 @@ package com.jnrptt.notificationsystemkafka.controller;
 import com.jnrptt.notificationsystemkafka.dto.ExpenseRequestDTO;
 import com.jnrptt.notificationsystemkafka.dto.ExpenseResponseDTO;
 import com.jnrptt.notificationsystemkafka.service.ExpenseService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,28 +31,28 @@ public class ExpenseController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ExpenseResponseDTO> getExpenseById(@PathVariable Long id) {
+    public ResponseEntity<ExpenseResponseDTO> getExpenseById(@PathVariable @Positive Long id) {
         return expenseService.getExpenseById(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public ResponseEntity<ExpenseResponseDTO> createExpense(@RequestBody ExpenseRequestDTO dto) {
+    public ResponseEntity<ExpenseResponseDTO> createExpense(@Valid @RequestBody ExpenseRequestDTO dto) {
         return expenseService.createExpense(dto)
                 .map(expense -> ResponseEntity.status(HttpStatus.CREATED).body(expense))
                 .orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ExpenseResponseDTO> updateExpense(@PathVariable Long id, @RequestBody ExpenseRequestDTO dto) {
+    public ResponseEntity<ExpenseResponseDTO> updateExpense(@PathVariable @Positive Long id, @Valid @RequestBody ExpenseRequestDTO dto) {
         return expenseService.updateExpense(id, dto)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteExpense(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteExpense(@PathVariable @Positive Long id) {
         boolean deleted = expenseService.deleteExpenseById(id);
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }

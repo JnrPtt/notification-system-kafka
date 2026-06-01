@@ -2,6 +2,7 @@ package com.jnrptt.notificationsystemkafka.service;
 
 import com.jnrptt.notificationsystemkafka.dto.UserRequestDTO;
 import com.jnrptt.notificationsystemkafka.dto.UserResponseDTO;
+import com.jnrptt.notificationsystemkafka.exception.DuplicateResourceException;
 import com.jnrptt.notificationsystemkafka.kafka.event.UserRegisteredEvent;
 import com.jnrptt.notificationsystemkafka.kafka.producer.NotificationProducer;
 import com.jnrptt.notificationsystemkafka.model.User;
@@ -38,9 +39,14 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO createUser(UserRequestDTO dto) {
+        String email = normalizeEmail(dto.getEmail());
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new DuplicateResourceException("A user with this email already exists");
+        }
+
         User user = new User();
-        user.setName(dto.getName());
-        user.setEmail(dto.getEmail());
+        user.setName(dto.getName().trim());
+        user.setEmail(email);
         User saved = userRepository.save(user);
 
         try {
@@ -66,8 +72,8 @@ public class UserService {
         }
 
         User existing = existingOpt.get();
-        existing.setName(dto.getName());
-        existing.setEmail(dto.getEmail());
+        existing.setName(dto.getName().trim());
+        existing.setEmail(normalizeEmail(dto.getEmail()));
         return Optional.of(toResponseDTO(userRepository.save(existing)));
     }
 
@@ -87,5 +93,9 @@ public class UserService {
                 user.getEmail(),
                 user.getCreatedAt()
         );
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase();
     }
 }

@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface BudgetRepository extends JpaRepository<Budget, Long> {
     Optional<Budget> findByUserIdAndCategoryAndMonth(Long userId, String category, String month);
+
+    boolean existsByUserIdAndCategoryAndMonth(Long userId, String category, String month);
 }

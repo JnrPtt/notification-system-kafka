@@ -2,6 +2,8 @@ package com.jnrptt.notificationsystemkafka.service;
 
 import com.jnrptt.notificationsystemkafka.dto.BudgetRequestDTO;
 import com.jnrptt.notificationsystemkafka.dto.BudgetResponseDTO;
+import com.jnrptt.notificationsystemkafka.exception.DuplicateResourceException;
+import com.jnrptt.notificationsystemkafka.exception.ResourceNotFoundException;
 import com.jnrptt.notificationsystemkafka.model.Budget;
 import com.jnrptt.notificationsystemkafka.model.User;
 import com.jnrptt.notificationsystemkafka.repository.BudgetRepository;
@@ -33,27 +35,36 @@ public class BudgetService {
 
     @Transactional
     public Optional<BudgetResponseDTO> createBudget(BudgetRequestDTO dto) {
-        if (dto.getUserId() == null) {
-            return Optional.empty();
+        User user = userRepository.findById(dto.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        String category = normalizeCategory(dto.getCategory());
+        if (budgetRepository.existsByUserIdAndCategoryAndMonth(dto.getUserId(), category, dto.getMonth())) {
+            throw new DuplicateResourceException("A budget already exists for this user, category and month");
         }
-        return userRepository.findById(dto.getUserId())
-                .map(user -> toResponseDTO(budgetRepository.save(buildBudget(new Budget(), dto, user))));
+
+        return Optional.of(toResponseDTO(budgetRepository.save(buildBudget(new Budget(), dto, user))));
     }
 
     @Transactional
     public Optional<BudgetResponseDTO> updateBudget(Long id, BudgetRequestDTO dto) {
-        if (dto.getUserId() == null) {
-            return Optional.empty();
-        }
         Optional<Budget> existingOpt = budgetRepository.findById(id);
-        Optional<User> userOpt = userRepository.findById(dto.getUserId());
-
-        if (existingOpt.isEmpty() || userOpt.isEmpty()) {
+        if (existingOpt.isEmpty()) {
             return Optional.empty();
         }
+
+        User user = userRepository.findById(dto.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Budget existing = existingOpt.get();
-        return Optional.of(toResponseDTO(budgetRepository.save(buildBudget(existing, dto, userOpt.get()))));
+        String category = normalizeCategory(dto.getCategory());
+        budgetRepository.findByUserIdAndCategoryAndMonth(dto.getUserId(), category, dto.getMonth())
+                .filter(budget -> !budget.getId().equals(id))
+                .ifPresent(budget -> {
+                    throw new DuplicateResourceException("A budget already exists for this user, category and month");
+                });
+
+        return Optional.of(toResponseDTO(budgetRepository.save(buildBudget(existing, dto, user))));
     }
 
     @Transactional
@@ -67,10 +78,14 @@ public class BudgetService {
 
     private Budget buildBudget(Budget budget, BudgetRequestDTO dto, User user) {
         budget.setUser(user);
-        budget.setCategory(dto.getCategory());
+        budget.setCategory(normalizeCategory(dto.getCategory()));
         budget.setLimitAmount(dto.getLimitAmount());
         budget.setMonth(dto.getMonth());
         return budget;
+    }
+
+    private String normalizeCategory(String category) {
+        return category.trim().toLowerCase();
     }
 
     private BudgetResponseDTO toResponseDTO(Budget budget) {

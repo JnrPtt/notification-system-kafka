@@ -2,6 +2,7 @@ package com.jnrptt.notificationsystemkafka.kafka.consumer;
 
 import com.jnrptt.notificationsystemkafka.kafka.event.BudgetExceededEvent;
 import com.jnrptt.notificationsystemkafka.kafka.event.UserRegisteredEvent;
+import com.jnrptt.notificationsystemkafka.kafka.KafkaTopics;
 import com.jnrptt.notificationsystemkafka.notifications.EmailNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -20,24 +21,24 @@ public class NotificationConsumer {
     private final EmailNotificationService emailNotificationService;
 
     @RetryableTopic(attempts = "3", backoff = @Backoff(delay = 2000), dltStrategy = DltStrategy.FAIL_ON_ERROR)
-    @KafkaListener(topics = "user-registered", groupId = "notification-group")
+    @KafkaListener(topics = KafkaTopics.USER_REGISTERED, groupId = "notification-group")
     public void handleUserRegistered(UserRegisteredEvent event) {
         emailNotificationService.sendWelcomeEmail(event.getEmail(), event.getName());
     }
 
     @DltHandler
     public void handleUserRegisteredDlt(UserRegisteredEvent event) {
-        log.error("Mensaje fallido en DLT user-registered: {}", event.getEmail());
+        log.error("Mensaje fallido en DLT {}: {}", KafkaTopics.USER_REGISTERED, event.getEmail());
     }
 
     @RetryableTopic(attempts = "3", backoff = @Backoff(delay = 2000), dltStrategy = DltStrategy.FAIL_ON_ERROR)
-    @KafkaListener(topics = "budget-exceeded", groupId = "notification-group")
+    @KafkaListener(topics = KafkaTopics.BUDGET_EXCEEDED, groupId = "notification-group")
     public void handleBudgetExceeded(BudgetExceededEvent event) {
         emailNotificationService.sendBudgetExceededEmail(event.getUserEmail());
     }
 
     @DltHandler
     public void handleBudgetExceededDlt(BudgetExceededEvent event) {
-        log.error("Mensaje fallido en DLT budget-exceeded: {}", event.getUserEmail());
+        log.error("Mensaje fallido en DLT {}: {}", KafkaTopics.BUDGET_EXCEEDED, event.getUserEmail());
     }
 }

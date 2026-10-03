@@ -11,11 +11,13 @@ API REST construida con Spring Boot para gestionar usuarios, presupuestos mensua
 - [Ejecucion con Docker](#ejecucion-con-docker)
 - [Ejecucion local](#ejecucion-local)
 - [API REST](#api-rest)
+- [Respuestas de error](#respuestas-de-error)
 - [Eventos Kafka](#eventos-kafka)
 - [Notificaciones por email](#notificaciones-por-email)
 - [Modelo de datos](#modelo-de-datos)
 - [Pruebas](#pruebas)
 - [Estructura del proyecto](#estructura-del-proyecto)
+- [Notas de desarrollo](#notas-de-desarrollo)
 
 ## Tecnologias
 
@@ -26,11 +28,14 @@ API REST construida con Spring Boot para gestionar usuarios, presupuestos mensua
 - Spring Validation
 - Spring Kafka
 - Spring Mail
+- springdoc-openapi 2.8.17 (Swagger UI)
+- Lombok
 - PostgreSQL 16
 - Apache Kafka con Zookeeper
 - MailHog para emails en desarrollo
 - Maven
 - Docker y Docker Compose
+- Tests: JUnit 5, Mockito, H2 en memoria y spring-kafka-test
 
 ## Arquitectura
 
@@ -44,6 +49,7 @@ El proyecto sigue una arquitectura por capas:
 - `kafka`: productores, consumidores, eventos y constantes de topics.
 - `notifications`: envio de emails.
 - `exception`: manejo centralizado de errores.
+- `config`: configuracion de CORS (`CorsConfig`) y de OpenAPI (`OpenApiConfig`).
 
 Flujo principal:
 
@@ -90,6 +96,7 @@ Variables soportadas:
 | `SPRING_MAIL_PASSWORD` | vacio | Password SMTP |
 | `SPRING_MAIL_SMTP_AUTH` | `false` | Habilita autenticacion SMTP |
 | `SPRING_MAIL_SMTP_STARTTLS_ENABLE` | `false` | Habilita STARTTLS |
+| `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:5173,http://localhost:4200` | Origenes permitidos por CORS, separados por coma |
 
 Ejemplo de `.env` para desarrollo local:
 
@@ -102,6 +109,7 @@ SPRING_MAIL_HOST=localhost
 SPRING_MAIL_PORT=1025
 SPRING_MAIL_SMTP_AUTH=false
 SPRING_MAIL_SMTP_STARTTLS_ENABLE=false
+APP_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
 
 ## Ejecucion con Docker
@@ -134,6 +142,8 @@ Eliminar tambien el volumen de PostgreSQL:
 docker compose down -v
 ```
 
+El `Dockerfile` es multi-stage (Maven + Temurin 21) y compila la imagen con `-DskipTests`. El servicio `app` de `docker-compose.yml` no define `APP_CORS_ALLOWED_ORIGINS`, por lo que usa los origenes por defecto.
+
 ## Ejecucion local
 
 1. Levantar PostgreSQL, Kafka y un SMTP local. Con el `docker-compose.yml` del proyecto se pueden levantar los servicios de soporte:
@@ -161,6 +171,22 @@ Base URL:
 ```text
 http://localhost:8080/api/v1
 ```
+
+Documentacion interactiva:
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/api-docs`
+
+Codigos de exito comunes a los tres recursos:
+
+| Operacion | Codigo |
+| --- | --- |
+| `GET` (lista o por ID) | `200 OK` |
+| `POST` | `201 Created` |
+| `PUT` | `200 OK` |
+| `DELETE` | `204 No Content` |
+
+El `{id}` de la ruta debe ser positivo; un valor menor o igual a `0` es invalido (`400`).
 
 ### Usuarios
 
@@ -205,7 +231,8 @@ Reglas:
 - `name` es obligatorio y tiene maximo 100 caracteres.
 - `email` es obligatorio, debe tener formato valido y maximo 150 caracteres.
 - El email se normaliza a minusculas.
-- No puede haber dos usuarios con el mismo email.
+- No puede haber dos usuarios con el mismo email. Al crear se valida de forma explicita; al actualizar (`PUT`) el duplicado lo detecta la restriccion unica de la base de datos y devuelve un `409` generico.
+- No se puede eliminar un usuario que tenga presupuestos o gastos asociados: la violacion de clave foranea devuelve `409`.
 
 ### Presupuestos
 
@@ -311,7 +338,7 @@ Reglas:
 
 ## Respuestas de error
 
-Los errores se devuelven con una estructura comun:
+Los errores gestionados por `GlobalExceptionHandler` se devuelven con una estructura comun:
 
 ```json
 {
@@ -334,6 +361,12 @@ Codigos habituales:
 | `404` | Recurso no encontrado |
 | `409` | Conflicto por duplicados o integridad de datos |
 
+Notas:
+
+- Los `404` de `GET`, `PUT` y `DELETE` sobre `/{id}` inexistente se devuelven **sin cuerpo**. Solo el `404` por un `userId` inexistente en el body de un `POST`/`PUT` (mensaje `User not found`) usa la estructura comun.
+- `validationErrors` solo se rellena en los `400` de validacion; en el resto es un objeto vacio.
+- Un `409` por violacion de integridad (por ejemplo email duplicado en `PUT` o usuario con datos asociados) lleva el mensaje generico `The request conflicts with existing data`.
+
 ## Eventos Kafka
 
 Topics definidos:
@@ -344,6 +377,16 @@ Topics definidos:
 | `expense-created` | `ExpenseCreatedEvent` | Al crear gasto | Sin consumidor actual |
 | `budget-exceeded` | `BudgetExceededEvent` | Al superar presupuesto | Envia email de presupuesto excedido |
 
+Los eventos se serializan como JSON (`JsonSerializer` / `JsonDeserializer`, con `trusted.packages` limitado a `com.jnrptt.notificationsystemkafka.kafka.event`).
+
+| Evento | Campos |
+| --- | --- |
+| `UserRegisteredEvent` | `userId`, `name`, `email`, `registeredAt` |
+| `ExpenseCreatedEvent` | `expenseId`, `userId`, `userEmail`, `description`, `category`, `amount`, `date` |
+| `BudgetExceededEvent` | `userId`, `userEmail`, `category`, `limitAmount`, `total`, `month` |
+
+`ExpenseCreatedEvent` se publica solo al **crear** un gasto, no al actualizarlo.
+
 ### Flujo de presupuesto excedido
 
 1. Se crea o actualiza un gasto.
@@ -352,14 +395,20 @@ Topics definidos:
 4. Si el total supera el limite, publica `BudgetExceededEvent`.
 5. El consumidor envia un email al usuario.
 
-Los consumidores usan `@RetryableTopic` con 3 intentos y backoff de 2 segundos. Si el procesamiento sigue fallando, el mensaje se envia al DLT configurado por Spring Kafka.
+El evento se publica en **cada** creacion o actualizacion de gasto mientras el total siga por encima del limite, por lo que el usuario puede recibir varios emails en el mismo mes.
+
+### Consumidores, reintentos y DLT
+
+- Grupo de consumidores: `notification-group`, con `auto-offset-reset=earliest`.
+- Los consumidores usan `@RetryableTopic` con 3 intentos y backoff de 2 segundos. Spring Kafka crea los topics de reintento y el DLT automaticamente.
+- Si el procesamiento sigue fallando, el mensaje llega al DLT (`DltStrategy.FAIL_ON_ERROR`) y el `@DltHandler` registra el error en el log.
 
 ## Notificaciones por email
 
 El servicio `EmailNotificationService` envia:
 
-- Email de bienvenida cuando se registra un usuario.
-- Email de aviso cuando se supera un presupuesto.
+- Email de bienvenida cuando se registra un usuario (asunto `Bienvenido`).
+- Email de aviso cuando se supera un presupuesto (asunto `Aviso de gasto excedido`). El texto es generico: no incluye categoria, limite ni total, aunque `BudgetExceededEvent` los contiene.
 
 En Docker Compose se usa MailHog:
 
@@ -410,15 +459,18 @@ Ejecutar tests:
 
 ```bash
 .\mvnw.cmd test
+.\mvnw.cmd test -Dtest=ExpenseServiceTest
 ```
+
+Los tests no necesitan PostgreSQL, Kafka ni SMTP: el test de contexto usa H2 en memoria (modo PostgreSQL) y el resto son tests unitarios con mocks.
 
 El proyecto incluye pruebas para:
 
-- `UserService`
-- `BudgetService`
-- `ExpenseService`
+- `UserService`, `BudgetService` y `ExpenseService`
 - `EmailNotificationService`
-- Carga del contexto de Spring Boot
+- `NotificationConsumer`
+- `GlobalExceptionHandler`
+- Carga del contexto de Spring Boot y disponibilidad de `/api-docs`
 
 ## Estructura del proyecto
 
@@ -430,6 +482,7 @@ El proyecto incluye pruebas para:
 ├── src
 │   ├── main
 │   │   ├── java/com/jnrptt/notificationsystemkafka
+│   │   │   ├── config
 │   │   │   ├── controller
 │   │   │   ├── dto
 │   │   │   ├── exception
@@ -441,11 +494,16 @@ El proyecto incluye pruebas para:
 │   │   └── resources/application.properties
 │   └── test
 │       └── java/com/jnrptt/notificationsystemkafka
+│           ├── exception
+│           ├── kafka/consumer
+│           ├── notifications
+│           └── service
 └── README.md
 ```
 
 ## Notas de desarrollo
 
+- CORS aplica solo a `/api/**` (metodos `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`) y por defecto permite `http://localhost:3000`, `http://localhost:5173` y `http://localhost:4200`. Puedes cambiarlo con `APP_CORS_ALLOWED_ORIGINS`.
 - Hibernate esta configurado con `spring.jpa.hibernate.ddl-auto=update`, por lo que el esquema se actualiza automaticamente en desarrollo.
 - El puerto de Kafka para conexiones desde el host es `9094`.
 - El puerto interno usado por la aplicacion dentro de Docker Compose es `kafka:9092`.

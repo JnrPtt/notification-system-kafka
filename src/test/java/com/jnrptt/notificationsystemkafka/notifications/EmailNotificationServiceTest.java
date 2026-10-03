@@ -15,6 +15,19 @@ class EmailNotificationServiceTest {
     private final EmailNotificationService service = new EmailNotificationService(mailSender);
 
     @Test
+    void sendWelcomeEmailSendsMessage() {
+        service.sendWelcomeEmail("user@example.com", "Juan");
+
+        ArgumentCaptor<SimpleMailMessage> messageCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(messageCaptor.capture());
+
+        SimpleMailMessage message = messageCaptor.getValue();
+        assertThat(message.getTo()).containsExactly("user@example.com");
+        assertThat(message.getSubject()).isEqualTo("Bienvenido");
+        assertThat(message.getText()).contains("Hola Juan");
+    }
+
+    @Test
     void sendBudgetExceededEmailSendsMessage() {
         service.sendBudgetExceededEmail("user@example.com");
 
